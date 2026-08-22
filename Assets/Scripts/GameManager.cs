@@ -30,6 +30,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] private Text movesText;
     [SerializeField] private Text matchesText;
     [SerializeField] private Text timerText;
+    [SerializeField] private Text levelText;
 
     [Header("Win/Fail UI")]
     [SerializeField] private GameObject levelCompletePanel;
@@ -37,6 +38,10 @@ public class GameManager : MonoBehaviour
     [SerializeField] private Button continueButton;
     [SerializeField] private GameObject levelFailedPanel;
     [SerializeField] private Button retryButton;
+    // Full screen art backdrop shown behind the end panels, since the panels
+    // themselves are small centered boxes, not full screen. Toggled with
+    // them so the game grid isn't left showing through in between.
+    [SerializeField] private GameObject endScreenBackground;
 
     [Header("Timer")]
     [SerializeField] private float urgentThresholdSeconds = 5f;
@@ -65,9 +70,9 @@ public class GameManager : MonoBehaviour
     // current round. Keeps the two mutually exclusive per level attempt.
     private bool roundEnded;
 
-    // Furthest level unlocked for play, persisted locally. Level 1 is always
-    // unlocked, so a fresh install with nothing saved defaults to 1.
-    private const string UnlockedLevelKey = "TidalRush.UnlockedLevel";
+    // Furthest level unlocked for play, persisted locally via ProgressData.
+    // Level 1 is always unlocked, so a fresh install with nothing saved
+    // defaults to 1.
     private int unlockedLevel = 1;
 
     // Highest level currently authored (Level_15.asset). Progression clamps here.
@@ -88,7 +93,7 @@ public class GameManager : MonoBehaviour
 
     private void LoadUnlockedLevel()
     {
-        unlockedLevel = PlayerPrefs.GetInt(UnlockedLevelKey, 1);
+        unlockedLevel = ProgressData.GetUnlockedLevel();
     }
 
     private void SaveUnlockedLevelIfHigher(int newlyUnlockedLevel)
@@ -99,19 +104,20 @@ public class GameManager : MonoBehaviour
         }
 
         unlockedLevel = newlyUnlockedLevel;
-        PlayerPrefs.SetInt(UnlockedLevelKey, unlockedLevel);
-        PlayerPrefs.Save();
+        ProgressData.SetUnlockedLevelIfHigher(newlyUnlockedLevel);
     }
 
     // Debug hook: right-click the GameManager component header in the
     // Inspector to run this, or call it directly from any script/test code.
-    [ContextMenu("Reset Unlocked Level (Testing)")]
-    public void ResetUnlockedLevelForTesting()
+    // Production reset flow (MainMenu's New Game button) calls
+    // ProgressData.ResetProgress() directly instead, since MainMenu has no
+    // GameManager instance to call this through.
+    [ContextMenu("Reset Progress (Testing)")]
+    public void ResetProgressForTesting()
     {
+        ProgressData.ResetProgress();
         unlockedLevel = 1;
-        PlayerPrefs.SetInt(UnlockedLevelKey, 1);
-        PlayerPrefs.Save();
-        Debug.Log("GameManager: unlockedLevel reset to 1.");
+        Debug.Log("GameManager: progress reset to level 1.");
     }
 
     private void WireEndScreenButtons()
@@ -295,6 +301,14 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    private void UpdateLevelText()
+    {
+        if (levelText != null)
+        {
+            levelText.text = "Level " + currentLevel;
+        }
+    }
+
     private void ResetTimer()
     {
         float duration = activeLevelData != null ? activeLevelData.timeLimitSeconds : 60f;
@@ -420,6 +434,11 @@ public class GameManager : MonoBehaviour
         {
             levelCompleteTimeText.text = "Time Remaining: " + Mathf.CeilToInt(timeRemaining) + "s";
         }
+
+        if (endScreenBackground != null)
+        {
+            endScreenBackground.SetActive(true);
+        }
     }
 
     private void ShowLevelFailed()
@@ -427,6 +446,11 @@ public class GameManager : MonoBehaviour
         if (levelFailedPanel != null)
         {
             levelFailedPanel.SetActive(true);
+        }
+
+        if (endScreenBackground != null)
+        {
+            endScreenBackground.SetActive(true);
         }
     }
 
@@ -440,6 +464,11 @@ public class GameManager : MonoBehaviour
         if (levelFailedPanel != null)
         {
             levelFailedPanel.SetActive(false);
+        }
+
+        if (endScreenBackground != null)
+        {
+            endScreenBackground.SetActive(false);
         }
     }
 
@@ -490,6 +519,7 @@ public class GameManager : MonoBehaviour
         roundEnded = false;
         HideEndPanels();
         ResetTimer();
+        UpdateLevelText();
 
         pairCount = (columns * rows) / 2;
         List<PairIdentity> cardIdentities = BuildShuffledCardIdentities(pairCount);
@@ -633,19 +663,37 @@ public class GameManager : MonoBehaviour
     // Audio hooks: no clips wired up yet, these are placeholders so sound
     // can be dropped in later without touching gameplay code again. See
     // BRAND.md's Sound Direction section for the intended feel of each one.
+    // Each checks the player's sound toggle first so it stays functionally
+    // wired even with no audible difference yet.
     private void PlayFlipSound()
     {
+        if (!SoundSettings.IsSoundEnabled())
+        {
+            return;
+        }
     }
 
     private void PlayMatchSound()
     {
+        if (!SoundSettings.IsSoundEnabled())
+        {
+            return;
+        }
     }
 
     private void PlayMismatchSound()
     {
+        if (!SoundSettings.IsSoundEnabled())
+        {
+            return;
+        }
     }
 
     private void PlayLevelCompleteSound()
     {
+        if (!SoundSettings.IsSoundEnabled())
+        {
+            return;
+        }
     }
 }

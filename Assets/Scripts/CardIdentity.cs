@@ -24,7 +24,9 @@ public class CardIdentity : MonoBehaviour
     // icons render in one fixed color. Pairs are told apart by real icon
     // shape and rotation now, not by a per-pair tint (that was only needed
     // while every card used the same placeholder triangle).
-    private static readonly Color IconColor = HexColor("E8ECF4");
+    // Deep navy, sampled from the approved mockup (SS3) to read against the
+    // flipped card's cream background - was off-white for the old dark card.
+    private static readonly Color IconColor = HexColor("102640");
 
     // BRAND.md motion rules: flip stays well under 0.5s with no bounce or
     // elastic easing (plain linear), match confirmation stays under 200ms.
