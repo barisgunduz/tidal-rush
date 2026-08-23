@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
@@ -35,20 +36,33 @@ public class GameManager : MonoBehaviour
     [Header("Win/Fail UI")]
     [SerializeField] private GameObject levelCompletePanel;
     [SerializeField] private Text levelCompleteTimeText;
+    [SerializeField] private Text levelCompleteLevelText;
+    [SerializeField] private Text levelCompleteMatchesText;
     [SerializeField] private Button continueButton;
     [SerializeField] private GameObject levelFailedPanel;
+    [SerializeField] private Text levelFailedBestText;
+    [SerializeField] private Text levelFailedLevelText;
+    [SerializeField] private Text levelFailedTimeReachedText;
     [SerializeField] private Button retryButton;
+    [SerializeField] private Button backToMenuButton;
     // Full screen art backdrop shown behind the end panels, since the panels
     // themselves are small centered boxes, not full screen. Toggled with
     // them so the game grid isn't left showing through in between.
     [SerializeField] private GameObject endScreenBackground;
+    // Container for the gameplay stat bar (Level/Time/Moves/Matches). Draw
+    // order alone did not keep it behind the end panels (see BACKLOG.md
+    // item 32), so it is explicitly hidden while an end panel is showing
+    // and restored when gameplay resumes, instead of relying on sibling index.
+    [SerializeField] private GameObject gameplayHud;
 
     [Header("Timer")]
     [SerializeField] private float urgentThresholdSeconds = 5f;
     [SerializeField] private float pulseAmplitude = 0.08f;
     [SerializeField] private float pulseSpeed = 6f; // radians/second, gentle not jarring
 
-    private static readonly Color NormalTimerColor = HexColor("E8ECF4");
+    // Matches the approved gameplay mockup: teal is the normal countdown
+    // color (BRAND.md's calm/progress color), orange still signals urgency.
+    private static readonly Color NormalTimerColor = HexColor("4FD1C5");
     private static readonly Color UrgentTimerColor = HexColor("F6AD55");
 
     private readonly List<GameObject> spawnedCards = new List<GameObject>();
@@ -130,6 +144,11 @@ public class GameManager : MonoBehaviour
         if (retryButton != null)
         {
             retryButton.onClick.AddListener(OnRetryClicked);
+        }
+
+        if (backToMenuButton != null)
+        {
+            backToMenuButton.onClick.AddListener(OnBackToMenuClicked);
         }
     }
 
@@ -292,12 +311,14 @@ public class GameManager : MonoBehaviour
     {
         if (movesText != null)
         {
-            movesText.text = "Moves: " + moveCount;
+            movesText.text = moveCount.ToString();
         }
 
         if (matchesText != null)
         {
-            matchesText.text = "Matches: " + matchCount + " / " + pairCount;
+            // Rich text (enabled on this Text component) tints the live match
+            // count teal, matching the approved gameplay mockup's stat row.
+            matchesText.text = "<color=#4FD1C5>" + matchCount + "</color> / " + pairCount;
         }
     }
 
@@ -305,7 +326,7 @@ public class GameManager : MonoBehaviour
     {
         if (levelText != null)
         {
-            levelText.text = "Level " + currentLevel;
+            levelText.text = currentLevel.ToString();
         }
     }
 
@@ -384,8 +405,7 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        int displaySeconds = Mathf.CeilToInt(timeRemaining);
-        timerText.text = "Time: " + displaySeconds;
+        timerText.text = FormatMinutesSeconds(timeRemaining);
     }
 
     private static Color HexColor(string hex)
@@ -432,12 +452,27 @@ public class GameManager : MonoBehaviour
 
         if (levelCompleteTimeText != null)
         {
-            levelCompleteTimeText.text = "Time Remaining: " + Mathf.CeilToInt(timeRemaining) + "s";
+            levelCompleteTimeText.text = FormatMinutesSeconds(timeRemaining);
+        }
+
+        if (levelCompleteLevelText != null)
+        {
+            levelCompleteLevelText.text = currentLevel.ToString();
+        }
+
+        if (levelCompleteMatchesText != null)
+        {
+            levelCompleteMatchesText.text = "<color=#4FD1C5>" + matchCount + "</color> / " + pairCount;
         }
 
         if (endScreenBackground != null)
         {
             endScreenBackground.SetActive(true);
+        }
+
+        if (gameplayHud != null)
+        {
+            gameplayHud.SetActive(false);
         }
     }
 
@@ -448,10 +483,40 @@ public class GameManager : MonoBehaviour
             levelFailedPanel.SetActive(true);
         }
 
+        if (levelFailedBestText != null)
+        {
+            levelFailedBestText.text = "<color=#F6AD55>" + matchCount + "</color> / " + pairCount;
+        }
+
+        if (levelFailedLevelText != null)
+        {
+            levelFailedLevelText.text = currentLevel.ToString();
+        }
+
+        if (levelFailedTimeReachedText != null)
+        {
+            levelFailedTimeReachedText.text = FormatMinutesSeconds(timeRemaining);
+        }
+
         if (endScreenBackground != null)
         {
             endScreenBackground.SetActive(true);
         }
+
+        if (gameplayHud != null)
+        {
+            gameplayHud.SetActive(false);
+        }
+    }
+
+    // Shared with the gameplay countdown's mm:ss format so end panel time
+    // values read consistently with the timer players just watched.
+    private static string FormatMinutesSeconds(float seconds)
+    {
+        int displaySeconds = Mathf.CeilToInt(seconds);
+        int minutes = displaySeconds / 60;
+        int secs = displaySeconds % 60;
+        return string.Format("{0:00}:{1:00}", minutes, secs);
     }
 
     private void HideEndPanels()
@@ -470,6 +535,11 @@ public class GameManager : MonoBehaviour
         {
             endScreenBackground.SetActive(false);
         }
+
+        if (gameplayHud != null)
+        {
+            gameplayHud.SetActive(true);
+        }
     }
 
     public void OnContinueClicked()
@@ -482,6 +552,11 @@ public class GameManager : MonoBehaviour
     public void OnRetryClicked()
     {
         SpawnGrid();
+    }
+
+    public void OnBackToMenuClicked()
+    {
+        SceneManager.LoadScene("MainMenu");
     }
 
     private void SetupCamera()
@@ -663,11 +738,11 @@ public class GameManager : MonoBehaviour
     // Audio hooks: no clips wired up yet, these are placeholders so sound
     // can be dropped in later without touching gameplay code again. See
     // BRAND.md's Sound Direction section for the intended feel of each one.
-    // Each checks the player's sound toggle first so it stays functionally
-    // wired even with no audible difference yet.
+    // Each checks the player's Sfx toggle specifically (not Music) so it
+    // stays functionally wired even with no audible difference yet.
     private void PlayFlipSound()
     {
-        if (!SoundSettings.IsSoundEnabled())
+        if (!SoundSettings.IsSfxEnabled())
         {
             return;
         }
@@ -675,7 +750,7 @@ public class GameManager : MonoBehaviour
 
     private void PlayMatchSound()
     {
-        if (!SoundSettings.IsSoundEnabled())
+        if (!SoundSettings.IsSfxEnabled())
         {
             return;
         }
@@ -683,7 +758,7 @@ public class GameManager : MonoBehaviour
 
     private void PlayMismatchSound()
     {
-        if (!SoundSettings.IsSoundEnabled())
+        if (!SoundSettings.IsSfxEnabled())
         {
             return;
         }
@@ -691,7 +766,7 @@ public class GameManager : MonoBehaviour
 
     private void PlayLevelCompleteSound()
     {
-        if (!SoundSettings.IsSoundEnabled())
+        if (!SoundSettings.IsSfxEnabled())
         {
             return;
         }

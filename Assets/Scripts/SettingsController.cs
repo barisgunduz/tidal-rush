@@ -6,9 +6,19 @@ public class SettingsController : MonoBehaviour
 {
     [Header("Back")]
     [SerializeField] private Button backButton;
+    [SerializeField] private Button backToMenuButton;
 
-    [Header("Sound")]
-    [SerializeField] private Toggle soundToggle;
+    [Header("Audio - Sound Effects")]
+    [SerializeField] private Toggle sfxToggle;
+    [SerializeField] private Image sfxToggleTrack;
+    [SerializeField] private RectTransform sfxToggleHandle;
+    [SerializeField] private Text sfxOnOffText;
+
+    [Header("Audio - Music")]
+    [SerializeField] private Toggle musicToggle;
+    [SerializeField] private Image musicToggleTrack;
+    [SerializeField] private RectTransform musicToggleHandle;
+    [SerializeField] private Text musicOnOffText;
 
     [Header("Reset Progress")]
     [SerializeField] private Button resetProgressButton;
@@ -22,6 +32,13 @@ public class SettingsController : MonoBehaviour
     [SerializeField] private Button quitConfirmYesButton;
     [SerializeField] private Button quitConfirmNoButton;
 
+    // Toggle-on and toggle-off tinting, matching BRAND.md: teal is the calm/
+    // positive/enabled color, the muted slate is used for the disabled state.
+    private static readonly Color ToggleOnColor = HexColor("4FD1C5");
+    private static readonly Color ToggleOffColor = HexColor("34435F");
+    private static readonly Color OnOffTextOnColor = HexColor("4FD1C5");
+    private static readonly Color OnOffTextOffColor = HexColor("8B93A7");
+
     private void Start()
     {
         if (backButton != null)
@@ -29,11 +46,16 @@ public class SettingsController : MonoBehaviour
             backButton.onClick.AddListener(OnBackClicked);
         }
 
-        if (soundToggle != null)
+        if (backToMenuButton != null)
         {
-            soundToggle.isOn = SoundSettings.IsSoundEnabled();
-            soundToggle.onValueChanged.AddListener(OnSoundToggleChanged);
+            backToMenuButton.onClick.AddListener(OnBackClicked);
         }
+
+        SetupToggle(sfxToggle, sfxToggleTrack, sfxToggleHandle, sfxOnOffText,
+            SoundSettings.IsSfxEnabled(), SoundSettings.SetSfxEnabled);
+
+        SetupToggle(musicToggle, musicToggleTrack, musicToggleHandle, musicOnOffText,
+            SoundSettings.IsMusicEnabled(), SoundSettings.SetMusicEnabled);
 
         if (resetProgressButton != null)
         {
@@ -74,9 +96,50 @@ public class SettingsController : MonoBehaviour
         SceneManager.LoadScene("MainMenu");
     }
 
-    private void OnSoundToggleChanged(bool isOn)
+    // Wires a toggle to its persisted preference and its own track/handle/
+    // ON-OFF-text visuals. The Toggle component only tracks isOn state and
+    // raycast/click handling here, since Image.Type.Sliced distorts these
+    // pre-baked track and handle sprites (see BACKLOG.md item 30) - both
+    // are plain Type.Simple sprites moved and tinted directly instead of
+    // relying on Toggle's built-in checkmark graphic.
+    private void SetupToggle(Toggle toggle, Image track, RectTransform handle, Text onOffText, bool initialOn, System.Action<bool> persist)
     {
-        SoundSettings.SetSoundEnabled(isOn);
+        if (toggle == null)
+        {
+            return;
+        }
+
+        toggle.SetIsOnWithoutNotify(initialOn);
+        ApplyToggleVisual(track, handle, onOffText, initialOn);
+
+        toggle.onValueChanged.AddListener(isOn =>
+        {
+            persist(isOn);
+            ApplyToggleVisual(track, handle, onOffText, isOn);
+        });
+    }
+
+    private void ApplyToggleVisual(Image track, RectTransform handle, Text onOffText, bool isOn)
+    {
+        if (track != null)
+        {
+            track.color = isOn ? ToggleOnColor : ToggleOffColor;
+        }
+
+        if (handle != null)
+        {
+            float trackHalfWidth = track != null ? track.rectTransform.rect.width / 2f : 50f;
+            float handleRadius = handle.rect.width / 2f;
+            const float padding = 6f;
+            float throwX = trackHalfWidth - padding - handleRadius;
+            handle.anchoredPosition = new Vector2(isOn ? throwX : -throwX, handle.anchoredPosition.y);
+        }
+
+        if (onOffText != null)
+        {
+            onOffText.text = isOn ? "ON" : "OFF";
+            onOffText.color = isOn ? OnOffTextOnColor : OnOffTextOffColor;
+        }
     }
 
     public void OnResetProgressClicked()
@@ -131,5 +194,12 @@ public class SettingsController : MonoBehaviour
         {
             quitConfirmPanel.SetActive(false);
         }
+    }
+
+    private static Color HexColor(string hex)
+    {
+        Color c;
+        ColorUtility.TryParseHtmlString("#" + hex, out c);
+        return c;
     }
 }

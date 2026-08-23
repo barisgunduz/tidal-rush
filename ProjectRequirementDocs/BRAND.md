@@ -55,6 +55,38 @@ Symbols should be simple, single color line or flat icons, readable at small mob
 
 These 8 symbols are the gameplay card icon set only. The project also uses a small set of separate UI action icons, not part of the card matching symbol pool: gear-hammer.png (Settings) and exit-door.png (Quit). These are stored in the same Assets/Sprites/Icons folder as the gameplay symbols but serve a different, menu-navigation purpose, do not confuse them with the 8 card symbols above when referencing "the icon set" in future prompts.
 
+## Layout and Spacing System
+This section defines fixed, reusable layout values so every screen is built to the same proportions instead of being re-derived by eye from a mockup each time. All values are expressed against the established reference canvas of 941 wide by 1672 tall, the same reference already used for Main Menu and Settings. Scale proportionally for any other resolution, never re-guess these ratios per screen.
+
+Spacing scale (base unit 8px at reference scale, use these tokens instead of arbitrary numbers):
+- XS: 8px
+- S: 16px
+- M: 24px
+- L: 32px
+- XL: 48px
+- XXL: 64px
+
+Buttons (established and validated on Main Menu, reused via the ButtonPrimaryTeal and ButtonSecondarySlate prefabs for every screen, never rebuilt from scratch):
+- Standalone menu buttons (no panel directly above them, for example Main Menu's Play/Settings/Quit): width 630px (67 percent of canvas width), horizontal margin 155px each side
+- Panel-adjacent buttons (buttons that sit directly beneath a bordered content panel, for example Settings' Back to Menu/Reset Progress/Quit beneath the AUDIO panel, or Level Complete's Continue and Level Failed's Retry/Back to Menu beneath their stat boxes): width 828px, matching the panel above them exactly, same 56px margin as the panel, so button and panel edges align
+- Height: 115px, corner radius: 24px, in both cases
+- Vertical gap between stacked buttons: S (16px)
+- Icon and label positions inside the button scale proportionally with button width, not as fixed pixel offsets, so the wider panel-adjacent buttons do not look off-center compared to the narrower standalone ones
+
+Bordered content panels (for example the Settings AUDIO panel, or any future stat box or grouped content panel):
+- Width: 828px (88 percent of canvas width), horizontal margin from screen edge: 56px each side
+- Internal padding: L (32px) on all four sides, top, bottom, left, and right equally
+- Section header (for example "AUDIO") sits at the top-left of the internal padding area, immediately at the top padding boundary, not with extra empty space above it
+- Gap between a section header and the divider line beneath it: S (16px)
+- Gap between the divider line and the first content row: M (24px)
+- Gap between subsequent content rows within the same panel: M (24px)
+- Gap between the last content row and the panel's bottom edge: equal to the top padding, L (32px), never larger than the top padding, panels must feel vertically symmetric, not bottom-heavy with empty space
+
+Vertical rhythm between major screen sections (for example between a panel and the button group beneath it, or between a title block and the content beneath it):
+- Gap: XL (48px)
+
+Any screen being built or restyled must use these exact values rather than approximating proportions from a mockup image by eye. If a mockup appears to suggest a different spacing, this specification takes precedence, treat the mockup as a style and content reference, not a pixel ruler.
+
 ## Background and Logo Assets
 Two illustration assets were produced externally (via AI design tools) and approved as the visual direction, both live under Assets/Art:
 - Assets/Art/Backgrounds/bg_lighthouse_scene.png: a full screen nautical night scene (lighthouse on a cliff, dark navy sea and sky, moonlit water) used as the background on the Main Menu, Level Complete, and Level Failed screens
