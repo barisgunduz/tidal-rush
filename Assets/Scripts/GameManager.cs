@@ -69,6 +69,20 @@ public class GameManager : MonoBehaviour
     [SerializeField] private RectTransform pauseMusicToggleHandle;
     [SerializeField] private Text pauseMusicOnOffText;
 
+    [Header("Hint")]
+    [SerializeField] private Button hintButton;
+    [SerializeField] private Image hintFrameImage;
+    [SerializeField] private Image hintIconImage;
+    [SerializeField] private Text hintCountText;
+
+    // Reveal duration and disabled-state dimming, not covered by BRAND.md's
+    // Layout/Spacing tokens since those are spacing values, not timings or
+    // opacity - kept local to this feature like mismatchFlipBackDelay above.
+    private const float HintRevealDuration = 1.5f;
+    private const float HintDisabledAlpha = 0.35f;
+
+    private int hintsRemaining;
+
     // Toggle-on and toggle-off tinting, matching the Settings scene's own
     // SettingsController (BRAND.md: teal is calm/enabled, muted slate is
     // disabled). Duplicated here rather than shared, following this
@@ -194,6 +208,11 @@ public class GameManager : MonoBehaviour
         {
             pauseBackToMenuButton.onClick.AddListener(OnBackToMenuClicked);
         }
+
+        if (hintButton != null)
+        {
+            hintButton.onClick.AddListener(OnHintClicked);
+        }
     }
 
     // Mirrors SettingsController's own toggle wiring exactly, so the Pause
@@ -291,6 +310,151 @@ public class GameManager : MonoBehaviour
         {
             gameplayHud.SetActive(true);
         }
+    }
+
+    // Fresh allowance per level attempt, not a persistent pool: 1-3 get 3,
+    // 4-6 get 2, 7-9 get 1, 10+ get 0 (hint button stays visible but
+    // disabled/dimmed there, matching the difficulty curve past the time
+    // floor - see PRD.md's level progression table).
+    private static int GetHintAllowanceForLevel(int level)
+    {
+        if (level <= 3)
+        {
+            return 3;
+        }
+        if (level <= 6)
+        {
+            return 2;
+        }
+        if (level <= 9)
+        {
+            return 1;
+        }
+        return 0;
+    }
+
+    private void UpdateHintUI()
+    {
+        if (hintCountText != null)
+        {
+            hintCountText.text = hintsRemaining.ToString();
+        }
+
+        bool hasHints = hintsRemaining > 0;
+        if (hintButton != null)
+        {
+            hintButton.interactable = hasHints;
+        }
+
+        float alpha = hasHints ? 1f : HintDisabledAlpha;
+        SetImageAlpha(hintFrameImage, alpha);
+        SetImageAlpha(hintIconImage, alpha);
+        SetTextAlpha(hintCountText, alpha);
+    }
+
+    private static void SetImageAlpha(Image img, float alpha)
+    {
+        if (img == null)
+        {
+            return;
+        }
+        Color c = img.color;
+        c.a = alpha;
+        img.color = c;
+    }
+
+    private static void SetTextAlpha(Text txt, float alpha)
+    {
+        if (txt == null)
+        {
+            return;
+        }
+        Color c = txt.color;
+        c.a = alpha;
+        txt.color = c;
+    }
+
+    public void OnHintClicked()
+    {
+        if (roundEnded || isPaused || inputLocked || hintsRemaining <= 0)
+        {
+            return;
+        }
+
+        CardIdentity a, b;
+        if (!TryFindRandomUnmatchedPair(out a, out b))
+        {
+            // Defensive no-op: hintsRemaining > 0 should always mean at
+            // least one complete unmatched pair exists (pairs are only ever
+            // matched together, never one card at a time), so this should
+            // never trigger in practice.
+            return;
+        }
+
+        a.FlipFaceUp();
+        b.FlipFaceUp();
+
+        inputLocked = true;
+        hintsRemaining--;
+        UpdateHintUI();
+
+        StartCoroutine(HintRevealRoutine(a, b));
+    }
+
+    private IEnumerator HintRevealRoutine(CardIdentity a, CardIdentity b)
+    {
+        yield return new WaitForSeconds(HintRevealDuration);
+
+        a.FlipFaceDown();
+        b.FlipFaceDown();
+        inputLocked = false;
+    }
+
+    // Shuffles which face-down card is checked first so repeated hints on
+    // the same board don't always surface the same pair, then does a plain
+    // linear scan for its match - the board is small enough (max 21 pairs)
+    // that this is simpler than a lookup table for a one-off pick.
+    private bool TryFindRandomUnmatchedPair(out CardIdentity a, out CardIdentity b)
+    {
+        List<CardIdentity> faceDown = new List<CardIdentity>();
+        foreach (GameObject go in spawnedCards)
+        {
+            if (go == null)
+            {
+                continue;
+            }
+            CardIdentity identity = go.GetComponent<CardIdentity>();
+            if (identity != null && identity.State == CardIdentity.CardState.FaceDown)
+            {
+                faceDown.Add(identity);
+            }
+        }
+
+        for (int i = faceDown.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            CardIdentity temp = faceDown[i];
+            faceDown[i] = faceDown[j];
+            faceDown[j] = temp;
+        }
+
+        for (int i = 0; i < faceDown.Count; i++)
+        {
+            for (int j = i + 1; j < faceDown.Count; j++)
+            {
+                if (faceDown[i].IconIndex == faceDown[j].IconIndex
+                    && faceDown[i].RotationDegrees == faceDown[j].RotationDegrees)
+                {
+                    a = faceDown[i];
+                    b = faceDown[j];
+                    return true;
+                }
+            }
+        }
+
+        a = null;
+        b = null;
+        return false;
     }
 
     private void LoadLevelData()
@@ -748,6 +912,8 @@ public class GameManager : MonoBehaviour
         {
             pausePanel.SetActive(false);
         }
+        hintsRemaining = GetHintAllowanceForLevel(currentLevel);
+        UpdateHintUI();
         HideEndPanels();
         ResetTimer();
         UpdateLevelText();
