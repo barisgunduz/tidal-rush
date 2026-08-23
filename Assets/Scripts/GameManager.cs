@@ -55,6 +55,29 @@ public class GameManager : MonoBehaviour
     // and restored when gameplay resumes, instead of relying on sibling index.
     [SerializeField] private GameObject gameplayHud;
 
+    [Header("Pause")]
+    [SerializeField] private Button pauseButton;
+    [SerializeField] private GameObject pausePanel;
+    [SerializeField] private Button resumeButton;
+    [SerializeField] private Button pauseBackToMenuButton;
+    [SerializeField] private Toggle pauseSfxToggle;
+    [SerializeField] private Image pauseSfxToggleTrack;
+    [SerializeField] private RectTransform pauseSfxToggleHandle;
+    [SerializeField] private Text pauseSfxOnOffText;
+    [SerializeField] private Toggle pauseMusicToggle;
+    [SerializeField] private Image pauseMusicToggleTrack;
+    [SerializeField] private RectTransform pauseMusicToggleHandle;
+    [SerializeField] private Text pauseMusicOnOffText;
+
+    // Toggle-on and toggle-off tinting, matching the Settings scene's own
+    // SettingsController (BRAND.md: teal is calm/enabled, muted slate is
+    // disabled). Duplicated here rather than shared, following this
+    // project's existing per-class HexColor convention.
+    private static readonly Color ToggleOnColor = HexColor("4FD1C5");
+    private static readonly Color ToggleOffColor = HexColor("34435F");
+    private static readonly Color OnOffTextOnColor = HexColor("4FD1C5");
+    private static readonly Color OnOffTextOffColor = HexColor("8B93A7");
+
     [Header("Timer")]
     [SerializeField] private float urgentThresholdSeconds = 5f;
     [SerializeField] private float pulseAmplitude = 0.08f;
@@ -84,6 +107,11 @@ public class GameManager : MonoBehaviour
     // current round. Keeps the two mutually exclusive per level attempt.
     private bool roundEnded;
 
+    // True while the Pause panel is up. Distinct from inputLocked: inputLocked
+    // covers the brief flip/match resolution window and must never pause the
+    // timer, while isPaused is the explicit player pause and must freeze it.
+    private bool isPaused;
+
     // Furthest level unlocked for play, persisted locally via ProgressData.
     // Level 1 is always unlocked, so a fresh install with nothing saved
     // defaults to 1.
@@ -98,6 +126,7 @@ public class GameManager : MonoBehaviour
     {
         Random.InitState(System.Environment.TickCount);
         WireEndScreenButtons();
+        SetupPauseToggles();
         LoadUnlockedLevel();
         currentLevel = unlockedLevel;
         LoadLevelData();
@@ -150,6 +179,118 @@ public class GameManager : MonoBehaviour
         {
             backToMenuButton.onClick.AddListener(OnBackToMenuClicked);
         }
+
+        if (pauseButton != null)
+        {
+            pauseButton.onClick.AddListener(OnPauseClicked);
+        }
+
+        if (resumeButton != null)
+        {
+            resumeButton.onClick.AddListener(OnResumeClicked);
+        }
+
+        if (pauseBackToMenuButton != null)
+        {
+            pauseBackToMenuButton.onClick.AddListener(OnBackToMenuClicked);
+        }
+    }
+
+    // Mirrors SettingsController's own toggle wiring exactly, so the Pause
+    // panel's Sound Effects and Music rows read and persist through the
+    // same SoundSettings statics the Settings scene uses.
+    private void SetupPauseToggles()
+    {
+        SetupToggle(pauseSfxToggle, pauseSfxToggleTrack, pauseSfxToggleHandle, pauseSfxOnOffText,
+            SoundSettings.IsSfxEnabled(), SoundSettings.SetSfxEnabled);
+
+        SetupToggle(pauseMusicToggle, pauseMusicToggleTrack, pauseMusicToggleHandle, pauseMusicOnOffText,
+            SoundSettings.IsMusicEnabled(), SoundSettings.SetMusicEnabled);
+    }
+
+    private void SetupToggle(Toggle toggle, Image track, RectTransform handle, Text onOffText, bool initialOn, System.Action<bool> persist)
+    {
+        if (toggle == null)
+        {
+            return;
+        }
+
+        toggle.SetIsOnWithoutNotify(initialOn);
+        ApplyToggleVisual(track, handle, onOffText, initialOn);
+
+        toggle.onValueChanged.AddListener(isOn =>
+        {
+            persist(isOn);
+            ApplyToggleVisual(track, handle, onOffText, isOn);
+        });
+    }
+
+    private void ApplyToggleVisual(Image track, RectTransform handle, Text onOffText, bool isOn)
+    {
+        if (track != null)
+        {
+            track.color = isOn ? ToggleOnColor : ToggleOffColor;
+        }
+
+        if (handle != null)
+        {
+            float trackHalfWidth = track != null ? track.rectTransform.rect.width / 2f : 50f;
+            float handleRadius = handle.rect.width / 2f;
+            const float padding = 6f;
+            float throwX = trackHalfWidth - padding - handleRadius;
+            handle.anchoredPosition = new Vector2(isOn ? throwX : -throwX, handle.anchoredPosition.y);
+        }
+
+        if (onOffText != null)
+        {
+            onOffText.text = isOn ? "ON" : "OFF";
+            onOffText.color = isOn ? OnOffTextOnColor : OnOffTextOffColor;
+        }
+    }
+
+    public void OnPauseClicked()
+    {
+        // Explicit guard: the pause button already lives under gameplayHud
+        // (hidden during Level Complete/Failed), but this blocks any stray
+        // trigger outright rather than relying on that alone.
+        if (roundEnded || isPaused)
+        {
+            return;
+        }
+
+        isPaused = true;
+        if (pausePanel != null)
+        {
+            pausePanel.SetActive(true);
+        }
+
+        // Same explicit hide mechanism as ShowLevelComplete/ShowLevelFailed
+        // (BACKLOG.md item 32) - draw order alone lets the HUD bleed through
+        // behind the panel. This also hides the pause button itself, since
+        // it lives under gameplayHud.
+        if (gameplayHud != null)
+        {
+            gameplayHud.SetActive(false);
+        }
+    }
+
+    public void OnResumeClicked()
+    {
+        if (!isPaused)
+        {
+            return;
+        }
+
+        isPaused = false;
+        if (pausePanel != null)
+        {
+            pausePanel.SetActive(false);
+        }
+
+        if (gameplayHud != null)
+        {
+            gameplayHud.SetActive(true);
+        }
     }
 
     private void LoadLevelData()
@@ -192,6 +333,11 @@ public class GameManager : MonoBehaviour
         TickTimer();
 
         if (roundEnded)
+        {
+            return;
+        }
+
+        if (isPaused)
         {
             return;
         }
@@ -250,7 +396,7 @@ public class GameManager : MonoBehaviour
     // detection, and safe to call directly (e.g. from tests or other input sources).
     public void RequestFlip(CardIdentity card)
     {
-        if (roundEnded || inputLocked || card == null)
+        if (roundEnded || inputLocked || isPaused || card == null)
         {
             return;
         }
@@ -349,6 +495,11 @@ public class GameManager : MonoBehaviour
     private void TickTimer()
     {
         if (!timerRunning)
+        {
+            return;
+        }
+
+        if (isPaused)
         {
             return;
         }
@@ -592,6 +743,11 @@ public class GameManager : MonoBehaviour
         moveCount = 0;
         matchCount = 0;
         roundEnded = false;
+        isPaused = false;
+        if (pausePanel != null)
+        {
+            pausePanel.SetActive(false);
+        }
         HideEndPanels();
         ResetTimer();
         UpdateLevelText();
