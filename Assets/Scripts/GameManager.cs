@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using TMPro;
 
 public class GameManager : MonoBehaviour
 {
@@ -28,21 +29,26 @@ public class GameManager : MonoBehaviour
     [SerializeField] private float mismatchFlipBackDelay = 0.7f;
 
     [Header("UI")]
-    [SerializeField] private Text movesText;
-    [SerializeField] private Text matchesText;
-    [SerializeField] private Text timerText;
-    [SerializeField] private Text levelText;
+    [SerializeField] private TextMeshProUGUI movesText;
+    [SerializeField] private TextMeshProUGUI matchesText;
+    [SerializeField] private TextMeshProUGUI timerText;
+    [SerializeField] private TextMeshProUGUI levelText;
 
     [Header("Win/Fail UI")]
     [SerializeField] private GameObject levelCompletePanel;
-    [SerializeField] private Text levelCompleteTimeText;
-    [SerializeField] private Text levelCompleteLevelText;
-    [SerializeField] private Text levelCompleteMatchesText;
+    [SerializeField] private TextMeshProUGUI levelCompleteTimeText;
+    [SerializeField] private TextMeshProUGUI levelCompleteLevelText;
+    [SerializeField] private TextMeshProUGUI levelCompleteMatchesText;
+    [SerializeField] private Image levelCompleteStar1;
+    [SerializeField] private Image levelCompleteStar2;
+    [SerializeField] private Image levelCompleteStar3;
+    [SerializeField] private Sprite starFilledSprite;
+    [SerializeField] private Sprite starOutlineSprite;
     [SerializeField] private Button continueButton;
     [SerializeField] private GameObject levelFailedPanel;
-    [SerializeField] private Text levelFailedBestText;
-    [SerializeField] private Text levelFailedLevelText;
-    [SerializeField] private Text levelFailedTimeReachedText;
+    [SerializeField] private TextMeshProUGUI levelFailedBestText;
+    [SerializeField] private TextMeshProUGUI levelFailedLevelText;
+    [SerializeField] private TextMeshProUGUI levelFailedTimeReachedText;
     [SerializeField] private Button retryButton;
     [SerializeField] private Button backToMenuButton;
     // Full screen art backdrop shown behind the end panels, since the panels
@@ -63,17 +69,17 @@ public class GameManager : MonoBehaviour
     [SerializeField] private Toggle pauseSfxToggle;
     [SerializeField] private Image pauseSfxToggleTrack;
     [SerializeField] private RectTransform pauseSfxToggleHandle;
-    [SerializeField] private Text pauseSfxOnOffText;
+    [SerializeField] private TextMeshProUGUI pauseSfxOnOffText;
     [SerializeField] private Toggle pauseMusicToggle;
     [SerializeField] private Image pauseMusicToggleTrack;
     [SerializeField] private RectTransform pauseMusicToggleHandle;
-    [SerializeField] private Text pauseMusicOnOffText;
+    [SerializeField] private TextMeshProUGUI pauseMusicOnOffText;
 
     [Header("Hint")]
     [SerializeField] private Button hintButton;
     [SerializeField] private Image hintFrameImage;
     [SerializeField] private Image hintIconImage;
-    [SerializeField] private Text hintCountText;
+    [SerializeField] private TextMeshProUGUI hintCountText;
 
     // Reveal duration and disabled-state dimming, not covered by BRAND.md's
     // Layout/Spacing tokens since those are spacing values, not timings or
@@ -92,6 +98,11 @@ public class GameManager : MonoBehaviour
     private static readonly Color OnOffTextOnColor = HexColor("4FD1C5");
     private static readonly Color OnOffTextOffColor = HexColor("8B93A7");
 
+    // Same teal/muted-gray split as the toggle colors above: teal for an
+    // earned star, BRAND.md's muted secondary-text gray for an unearned one.
+    private static readonly Color StarEarnedColor = HexColor("4FD1C5");
+    private static readonly Color StarUnearnedColor = HexColor("8B93A7");
+
     [Header("Timer")]
     [SerializeField] private float urgentThresholdSeconds = 5f;
     [SerializeField] private float pulseAmplitude = 0.08f;
@@ -108,6 +119,7 @@ public class GameManager : MonoBehaviour
     private int pairCount;
     private int moveCount;
     private int matchCount;
+    private int lastStarsEarned;
 
     private LevelData activeLevelData;
     private int columns = 4;
@@ -227,7 +239,7 @@ public class GameManager : MonoBehaviour
             SoundSettings.IsMusicEnabled(), SoundSettings.SetMusicEnabled);
     }
 
-    private void SetupToggle(Toggle toggle, Image track, RectTransform handle, Text onOffText, bool initialOn, System.Action<bool> persist)
+    private void SetupToggle(Toggle toggle, Image track, RectTransform handle, TextMeshProUGUI onOffText, bool initialOn, System.Action<bool> persist)
     {
         if (toggle == null)
         {
@@ -244,7 +256,7 @@ public class GameManager : MonoBehaviour
         });
     }
 
-    private void ApplyToggleVisual(Image track, RectTransform handle, Text onOffText, bool isOn)
+    private void ApplyToggleVisual(Image track, RectTransform handle, TextMeshProUGUI onOffText, bool isOn)
     {
         if (track != null)
         {
@@ -333,6 +345,32 @@ public class GameManager : MonoBehaviour
         return 0;
     }
 
+    // Weighted 0.6 toward moveRatio rather than timeRatio: past the 15s
+    // time floor (PRD.md level 10+) timeRatio increasingly reflects
+    // reaction speed rather than skill, while moveRatio (memory accuracy)
+    // stays a meaningful signal at any grid size. Both ratios are already
+    // normalized to the level's own par (LevelData's time limit and
+    // pairCount), so the same thresholds apply uniformly across levels
+    // without needing to scale per difficulty. Thresholds are tuned so
+    // perfect moves alone always clears 2 stars, and 3 stars needs both
+    // accuracy and time to spare.
+    private static int CalculateStarRating(float timeRatio, float moveRatio)
+    {
+        float combinedScore = 0.4f * timeRatio + 0.6f * moveRatio;
+
+        if (combinedScore >= 0.75f)
+        {
+            return 3;
+        }
+
+        if (combinedScore >= 0.45f)
+        {
+            return 2;
+        }
+
+        return 1;
+    }
+
     private void UpdateHintUI()
     {
         if (hintCountText != null)
@@ -363,7 +401,7 @@ public class GameManager : MonoBehaviour
         img.color = c;
     }
 
-    private static void SetTextAlpha(Text txt, float alpha)
+    private static void SetTextAlpha(TextMeshProUGUI txt, float alpha)
     {
         if (txt == null)
         {
@@ -626,8 +664,8 @@ public class GameManager : MonoBehaviour
 
         if (matchesText != null)
         {
-            // Rich text (enabled on this Text component) tints the live match
-            // count teal, matching the approved gameplay mockup's stat row.
+            // TMP parses rich text tags by default, tinting the live match
+            // count teal to match the approved gameplay mockup's stat row.
             matchesText.text = "<color=#4FD1C5>" + matchCount + "</color> / " + pairCount;
         }
     }
@@ -743,6 +781,12 @@ public class GameManager : MonoBehaviour
         int nextUnlockable = Mathf.Min(currentLevel + 1, MaxLevel);
         SaveUnlockedLevelIfHigher(nextUnlockable);
 
+        float timeLimit = activeLevelData != null ? activeLevelData.timeLimitSeconds : 60f;
+        float timeRatio = timeRemaining / timeLimit;
+        float moveRatio = (float)pairCount / moveCount;
+        lastStarsEarned = CalculateStarRating(timeRatio, moveRatio);
+        ProgressData.SetBestStarsIfHigher(currentLevel, lastStarsEarned);
+
         PlayLevelCompleteSound();
         ShowLevelComplete();
     }
@@ -780,6 +824,8 @@ public class GameManager : MonoBehaviour
             levelCompleteMatchesText.text = "<color=#4FD1C5>" + matchCount + "</color> / " + pairCount;
         }
 
+        UpdateLevelCompleteStars();
+
         if (endScreenBackground != null)
         {
             endScreenBackground.SetActive(true);
@@ -789,6 +835,25 @@ public class GameManager : MonoBehaviour
         {
             gameplayHud.SetActive(false);
         }
+    }
+
+    private void UpdateLevelCompleteStars()
+    {
+        SetStarIcon(levelCompleteStar1, 1);
+        SetStarIcon(levelCompleteStar2, 2);
+        SetStarIcon(levelCompleteStar3, 3);
+    }
+
+    private void SetStarIcon(Image starImage, int starPosition)
+    {
+        if (starImage == null)
+        {
+            return;
+        }
+
+        bool earned = starPosition <= lastStarsEarned;
+        starImage.sprite = earned ? starFilledSprite : starOutlineSprite;
+        starImage.color = earned ? StarEarnedColor : StarUnearnedColor;
     }
 
     private void ShowLevelFailed()

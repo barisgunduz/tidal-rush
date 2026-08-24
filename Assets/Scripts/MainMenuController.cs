@@ -1,12 +1,13 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using TMPro;
 
 public class MainMenuController : MonoBehaviour
 {
     [Header("Continue / Play")]
     [SerializeField] private Button continueButton;
-    [SerializeField] private Text continueButtonLabel;
+    [SerializeField] private TextMeshProUGUI continueButtonLabel;
 
     [Header("Settings")]
     [SerializeField] private Button settingsButton;

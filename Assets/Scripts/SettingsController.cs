@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using TMPro;
 
 public class SettingsController : MonoBehaviour
 {
@@ -12,13 +13,13 @@ public class SettingsController : MonoBehaviour
     [SerializeField] private Toggle sfxToggle;
     [SerializeField] private Image sfxToggleTrack;
     [SerializeField] private RectTransform sfxToggleHandle;
-    [SerializeField] private Text sfxOnOffText;
+    [SerializeField] private TextMeshProUGUI sfxOnOffText;
 
     [Header("Audio - Music")]
     [SerializeField] private Toggle musicToggle;
     [SerializeField] private Image musicToggleTrack;
     [SerializeField] private RectTransform musicToggleHandle;
-    [SerializeField] private Text musicOnOffText;
+    [SerializeField] private TextMeshProUGUI musicOnOffText;
 
     [Header("Reset Progress")]
     [SerializeField] private Button resetProgressButton;
@@ -102,7 +103,7 @@ public class SettingsController : MonoBehaviour
     // pre-baked track and handle sprites (see BACKLOG.md item 30) - both
     // are plain Type.Simple sprites moved and tinted directly instead of
     // relying on Toggle's built-in checkmark graphic.
-    private void SetupToggle(Toggle toggle, Image track, RectTransform handle, Text onOffText, bool initialOn, System.Action<bool> persist)
+    private void SetupToggle(Toggle toggle, Image track, RectTransform handle, TextMeshProUGUI onOffText, bool initialOn, System.Action<bool> persist)
     {
         if (toggle == null)
         {
@@ -119,7 +120,7 @@ public class SettingsController : MonoBehaviour
         });
     }
 
-    private void ApplyToggleVisual(Image track, RectTransform handle, Text onOffText, bool isOn)
+    private void ApplyToggleVisual(Image track, RectTransform handle, TextMeshProUGUI onOffText, bool isOn)
     {
         if (track != null)
         {

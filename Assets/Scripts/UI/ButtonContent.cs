@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 // Exposes the icon and label of a ButtonPrimaryTeal / ButtonSecondarySlate
 // prefab instance so callers can swap content without touching layout.
@@ -9,10 +10,10 @@ using UnityEngine.UI;
 public class ButtonContent : MonoBehaviour
 {
     [SerializeField] private Image icon;
-    [SerializeField] private Text label;
+    [SerializeField] private TextMeshProUGUI label;
 
     public Image Icon => icon;
-    public Text Label => label;
+    public TextMeshProUGUI Label => label;
 
     public void SetContent(Sprite iconSprite, string labelText)
     {
